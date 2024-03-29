@@ -59,6 +59,7 @@ func S3DownloadFile(bucketName, objectKey, filePath string) error {
 	if err != nil {
 		return err
 	}
+
 	defer file.Close()
 
 	_, err = downloader.Download(context.TODO(), file, &s3.GetObjectInput{
@@ -70,7 +71,6 @@ func S3DownloadFile(bucketName, objectKey, filePath string) error {
 	}
 
 	return nil
-
 }
 
 // s3DeleteFile deletes a file from an S3 bucket.
@@ -127,10 +127,7 @@ func DownloadHandler(w http.ResponseWriter, r *http.Request) {
 	objectKey := r.URL.Query().Get("objectKey")
 	filePath := r.URL.Query().Get("filePath")
 
-	if err := S3DownloadFile(bucketName, objectKey, filePath); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	S3DownloadFile(bucketName, objectKey, filePath)
 
 	w.Header().Set("Content-Type", "application/json")
 

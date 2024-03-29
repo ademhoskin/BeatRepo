@@ -15,8 +15,8 @@ var (
 	bucketName        = "cppbeatproj"
 	uploadObjectKey   = "test-upload.txt"
 	uploadFilePath    = "test-upload.txt"
-	downloadObjectKey = "134782.jpg"
-	downloadFilePath  = "134782.jpg"
+	downloadObjectKey = "1347872.jpg"
+	downloadFilePath  = "1347872.jpg"
 )
 
 func TestThisConfig(t *testing.T) {
@@ -82,7 +82,6 @@ func TestS3DownloadHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
-	defer os.Remove(downloadFilePath)
 
 	rr := httptest.NewRecorder()
 	handler := http.HandlerFunc(DownloadHandler)
@@ -91,6 +90,7 @@ func TestS3DownloadHandler(t *testing.T) {
 	if status := rr.Code; status != http.StatusOK {
 		t.Fatalf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
+	defer os.Remove(downloadFilePath)
 }
 
 func TestS3DeleteHandler(t *testing.T) {
@@ -115,10 +115,9 @@ func TestS3DeleteHandler(t *testing.T) {
 		t.Fatalf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
-	if err := S3DownloadFile(bucketName, downloadObjectKey, downloadFilePath); err == nil {
+	if err := S3DownloadFile(bucketName, uploadObjectKey, uploadFilePath); err == nil {
 		t.Fatalf("Failed to delete test object from S3")
 	}
-
 }
 
 // helper functions
