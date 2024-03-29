@@ -7,7 +7,6 @@ import java.util.Date;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.ResponseEntity;
 
 import repo.beat.middleware.model.BeatZip;
 
@@ -37,7 +36,7 @@ public class DBServiceTests {
         assertEquals(retrievedBeatZip.getZipSize(), zipSize);
         assertEquals(retrievedBeatZip.getS3Link(), s3Link);
         assertEquals(retrievedBeatZip.getDateAdded(), newDate);
-        
+
 
         // delete
         zipFileDBService.deleteZipFile(savedBeatZip.getId());
