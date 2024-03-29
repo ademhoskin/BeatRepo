@@ -16,6 +16,7 @@ import (
 func CreateS3Client() *s3.Client {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
+		log.Fatalf("failed to load configuration, %v", err)
 		return nil
 	}
 	return s3.NewFromConfig(cfg)
@@ -51,20 +52,13 @@ func S3UploadFile(bucketName, objectKey, filePath string) error {
 // It takes the bucket name, object key, and file path as input parameters.
 // Returns an error if any error occurs during the download process.
 func S3DownloadFile(bucketName, objectKey, filePath string) error {
-	cfg, err := config.LoadDefaultConfig(context.TODO())
-	if err != nil {
-		return err
-	}
-
-	client := s3.NewFromConfig(cfg)
-
+	client := CreateS3Client()
 	downloader := manager.NewDownloader(client)
 
 	file, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
-
 	defer file.Close()
 
 	_, err = downloader.Download(context.TODO(), file, &s3.GetObjectInput{
@@ -100,7 +94,7 @@ func S3DeleteFile(bucketName, objectKey string) error {
 	return nil
 }
 
-// (todo: add put method)
+// handlers
 func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -110,18 +104,17 @@ func UploadHandler(w http.ResponseWriter, r *http.Request) {
 	var data map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Println(err)
 		return
 	}
-	defer r.Body.Close()
 
 	if err := S3UploadFile(data["bucketName"], data["objectKey"], data["filePath"]); err != nil {
+		log.Fatalf(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		log.Println(err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+
 }
 
 func DownloadHandler(w http.ResponseWriter, r *http.Request) {
@@ -129,13 +122,13 @@ func DownloadHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
 	bucketName := r.URL.Query().Get("bucketName")
 	objectKey := r.URL.Query().Get("objectKey")
 	filePath := r.URL.Query().Get("filePath")
 
 	if err := S3DownloadFile(bucketName, objectKey, filePath); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		log.Println(err)
 		return
 	}
 
@@ -150,14 +143,10 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var data map[string]string
-	if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
+	bucketName := r.URL.Query().Get("bucketName")
+	objectKey := r.URL.Query().Get("objectKey")
 
-	if err := S3DeleteFile(data["bucketName"], data["objectKey"]); err != nil {
+	if err := S3DeleteFile(bucketName, objectKey); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

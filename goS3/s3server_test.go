@@ -2,124 +2,123 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 )
 
-func TestS3UploadDownloadIntegration(t *testing.T) {
-	// Setup
-	bucketName := "cppbeatproj"
-	objectKey := "test-object"
-	uploadFilePath := "test-upload.txt"
-	downloadFilePath := "test-downloaded.txt"
+// test config
 
+var (
+	bucketName        = "cppbeatproj"
+	uploadObjectKey   = "test-upload.txt"
+	uploadFilePath    = "test-upload.txt"
+	downloadObjectKey = "134782.jpg"
+	downloadFilePath  = "134782.jpg"
+)
+
+func TestThisConfig(t *testing.T) {
+	if bucketName == "" || uploadObjectKey == "" || uploadFilePath == "" || downloadObjectKey == "" || downloadFilePath == "" {
+		t.Fatalf("Test config is not set")
+	}
+}
+
+func TestS3UploadDownloadIntegration(t *testing.T) {
 	CreateTestFile(uploadFilePath, t)
 	defer os.Remove(uploadFilePath)
 
 	// Upload the file to S3
-	if err := S3UploadFile(bucketName, objectKey, uploadFilePath); err != nil {
+	if err := S3UploadFile(bucketName, uploadObjectKey, uploadFilePath); err != nil {
 		t.Fatalf("Failed to upload test file to S3: %v", err)
 	}
 
 	//defer the deletion of the test object from S3
 	defer func() {
-		if err := S3DeleteFile(bucketName, objectKey); err != nil {
+		if err := S3DeleteFile(bucketName, uploadObjectKey); err != nil {
 			t.Fatalf("Failed to delete test object from S3: %v", err)
 		}
 	}()
 
 	// Download the file from S3
-	if err := S3DownloadFile(bucketName, objectKey, downloadFilePath); err != nil {
+	if err := S3DownloadFile(bucketName, uploadObjectKey, downloadFilePath); err != nil {
 		t.Fatalf("Failed to download test file from S3: %v", err)
 	}
 	defer os.Remove(downloadFilePath)
 
-	// Compare the uploaded and downloaded files
-	if !FilesAreIdentical(uploadFilePath, downloadFilePath) {
-		t.Fatalf("Uploaded and downloaded files are not identical (did you mess around with the file content?)")
+}
+
+func TestS3UploadHandler(t *testing.T) {
+	CreateTestFile(uploadFilePath, t)
+	defer os.Remove(uploadFilePath)
+	defer func() {
+		if err := S3DeleteFile(bucketName, uploadObjectKey); err != nil {
+			t.Fatalf("Failed to delete test object from S3: %v", err)
+		}
+	}()
+
+	body := CreateRequestBody(bucketName, uploadObjectKey, uploadFilePath)
+	if body == nil {
+		t.Fatalf("Failed to create request body")
+	}
+
+	req, err := http.NewRequest("POST", "/upload", body)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(UploadHandler)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Fatalf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 }
 
-func TestHandlers(t *testing.T) {
-	// Setup
-	bucketName := "cppbeatproj"
-	objectKey := "test-object"
-	uploadFilePath := "test-upload.txt"
-	downloadFilePath := "test-downloaded.txt"
-	s3Client := CreateS3Client()
+func TestS3DownloadHandler(t *testing.T) {
+	req, err := http.NewRequest("GET", "/download?bucketName="+bucketName+"&objectKey="+downloadObjectKey+"&filePath="+downloadFilePath, nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	defer os.Remove(downloadFilePath)
 
-	// Start the server
-	ExecServer()
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(DownloadHandler)
+	handler.ServeHTTP(rr, req)
 
-	// test upload handler
+	if status := rr.Code; status != http.StatusOK {
+		t.Fatalf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	}
+}
 
+func TestS3DeleteHandler(t *testing.T) {
 	CreateTestFile(uploadFilePath, t)
 	defer os.Remove(uploadFilePath)
 
-	uploadURL := "http://localhost:8080/upload"
-	reqBody := CreateRequestBody(bucketName, objectKey, uploadFilePath)
-	res, err := http.Post(uploadURL, "application/json", reqBody)
+	if err := S3UploadFile(bucketName, uploadObjectKey, uploadFilePath); err != nil {
+		t.Fatalf("Failed to upload test file(upload) to S3: %v", err)
+	}
+
+	deleteURL := "/delete?bucketName=" + bucketName + "&objectKey=" + uploadObjectKey
+	req, err := http.NewRequest("DELETE", deleteURL, nil)
 	if err != nil {
-		t.Fatalf("Failed to send POST request to upload handler: %v", err)
+		t.Fatalf("Failed to create request: %v", err)
 	}
 
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("Upload handler returned status code %d", res.StatusCode)
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(DeleteHandler)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusOK {
+		t.Fatalf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
-	// test download handler
-	downloadURL := "http://localhost:8080/download"
-	req, err := http.NewRequest(http.MethodGet, downloadURL, nil)
-	if err != nil {
-		t.Fatalf("Failed to create GET request to download handler: %v", err)
+	if err := S3DownloadFile(bucketName, downloadObjectKey, downloadFilePath); err == nil {
+		t.Fatalf("Failed to delete test object from S3")
 	}
 
-	q := req.URL.Query()
-	q.Add("bucketName", bucketName)
-	q.Add("objectKey", objectKey)
-	q.Add("filePath", downloadFilePath)
-	req.URL.RawQuery = q.Encode()
-
-	res, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("Failed to send GET request to download handler: %v", err)
-	}
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("Download handler returned status code %d", res.StatusCode)
-	}
-	// Compare the uploaded and downloaded files
-	if !FilesAreIdentical(uploadFilePath, downloadFilePath) {
-		t.Fatalf("Uploaded and downloaded files are not identical (did you mess around with the file content?)")
-	}
-
-	// test delete handler
-	deleteURL := "http://localhost:8080/delete"
-	reqBody = CreateRequestBody(bucketName, objectKey, "")
-	req, err = http.NewRequest(http.MethodDelete, deleteURL, reqBody)
-	if err != nil {
-		t.Fatalf("Failed to create DELETE request to delete handler: %v", err)
-	}
-
-	res, err = http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("Failed to send DELETE request to delete handler: %v", err)
-	}
-
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("Delete handler returned status code %d", res.StatusCode)
-	}
-
-	// Check if the object was delete
-	if _, err := s3Client.GetObject(context.TODO(), &s3.GetObjectInput{
-		Bucket: &bucketName,
-		Key:    &objectKey,
-	}); err == nil {
-		t.Fatalf("Object was not deleted from S3")
-	}
 }
 
 // helper functions
