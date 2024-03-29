@@ -154,9 +154,9 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 // server configuration
 func ExecServer() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/upload", UploadHandler)
-	mux.HandleFunc("/download", DownloadHandler)
-	mux.HandleFunc("/delete", DeleteHandler)
+	mux.HandleFunc("/s3/upload", UploadHandler)
+	mux.HandleFunc("/s3/download", DownloadHandler)
+	mux.HandleFunc("/s3/delete", DeleteHandler)
 	http.ListenAndServe(":8080", mux)
 	fmt.Println("Server started at port 8080")
 }

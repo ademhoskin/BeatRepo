@@ -29,6 +29,7 @@ public class BeatZip {
     }
 
     public BeatZip(String zipName, Long zipSize, String s3Link, Date dateAdded) {
+        
         this.zipName = zipName;
         this.zipSize = zipSize;
         this.s3Link = s3Link;
