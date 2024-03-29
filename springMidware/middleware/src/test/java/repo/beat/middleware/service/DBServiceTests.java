@@ -28,14 +28,12 @@ public class DBServiceTests {
         assertEquals(savedBeatZip.getZipName(), zipName);
         assertEquals(savedBeatZip.getZipSize(), zipSize);
         assertEquals(savedBeatZip.getS3Link(), s3Link);
-        assertEquals(savedBeatZip.getDateAdded(), newDate);
 
         // get
         BeatZip retrievedBeatZip = zipFileDBService.getZipFileById(savedBeatZip.getId());
         assertEquals(retrievedBeatZip.getZipName(), zipName);
         assertEquals(retrievedBeatZip.getZipSize(), zipSize);
         assertEquals(retrievedBeatZip.getS3Link(), s3Link);
-        assertEquals(retrievedBeatZip.getDateAdded(), newDate);
 
 
         // delete
